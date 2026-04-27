@@ -1,11 +1,10 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import videojs from "video.js";
-import "video.js/dist/video-js.css";
+import WebTorrent from "webtorrent";
 
 interface VideoPlayerProps {
-  src: string;
+  torrentUrl: string;
   poster?: string;
   title?: string;
   onEnded?: () => void;
@@ -15,7 +14,7 @@ interface VideoPlayerProps {
 }
 
 const VideoPlayer = ({
-  src,
+  torrentUrl,
   poster,
   title,
   onEnded,
@@ -23,81 +22,160 @@ const VideoPlayer = ({
   initialTime = 0,
   autoPlay = false,
 }: VideoPlayerProps) => {
-  const videoRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<ReturnType<typeof videojs> | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const clientRef = useRef<WebTorrent.Instance | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [progress, setProgress] = useState(0);
+  const [downloadSpeed, setDownloadSpeed] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Make sure Video.js player is only initialized once
-    if (!playerRef.current) {
-      const videoElement = document.createElement("video-js");
-      videoElement.classList.add("vjs-big-play-centered");
-      videoRef.current?.appendChild(videoElement);
-
-      const player = (playerRef.current = videojs(videoElement, {
-        controls: true,
-        autoplay: autoPlay,
-        responsive: true,
-        fluid: true,
-        poster: poster,
-        sources: [
-          {
-            src: src,
-            type: "application/x-mpegURL", // HLS
-          },
-        ],
-        html5: {
-          vhs: {
-            overrideNative: true,
-          },
+    // Initialize WebTorrent client
+    if (!clientRef.current) {
+      clientRef.current = new WebTorrent({
+        tracker: {
+          wss: "wss://tracker.openwebtorrent.com",
         },
-        playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-        userActions: {
-          hotkeys: true,
-        },
-      }));
-
-      player.on("ready", () => {
-        setIsReady(true);
-        if (initialTime > 0) {
-          player.currentTime(initialTime);
-        }
       });
-
-      player.on("ended", () => {
-        onEnded?.();
-      });
-
-      player.on("timeupdate", () => {
-        onTimeUpdate?.(player.currentTime() || 0);
-      });
-    } else {
-      // You can update player in the else block here if needed
-      const player = playerRef.current;
-      player.src({ src, type: "application/x-mpegURL" });
-      if (poster) player.poster(poster);
     }
-  }, [src, poster, autoPlay, initialTime, onEnded, onTimeUpdate]);
 
-  // Dispose player on unmount
-  useEffect(() => {
-    const player = playerRef.current;
-    return () => {
-      if (player && !player.isDisposed()) {
-        player.dispose();
-        playerRef.current = null;
+    const client = clientRef.current;
+
+    // Add torrent
+    if (torrentUrl) {
+      setIsLoading(true);
+      setError(null);
+
+      // Check if it's a magnet link or torrent file
+      if (torrentUrl.startsWith("magnet:")) {
+        client.add(torrentUrl, { path: "/tmp" }, (torrent) => {
+          handleTorrent(torrent);
+        });
+      } else if (torrentUrl.endsWith(".torrent")) {
+        client.add(torrentUrl, (torrent) => {
+          handleTorrent(torrent);
+        });
+      } else {
+        setError("Invalid torrent URL. Use a magnet link or .torrent file.");
+        setIsLoading(false);
       }
+    }
+
+    function handleTorrent(torrent: WebTorrent.Torrent) {
+      // Find the largest video file
+      const videoFile = torrent.files.find((file) =>
+        file.name.match(/\.(mp4|mkv|avi|mov|webm)$/i)
+      );
+
+      if (!videoFile) {
+        setError("No video file found in this torrent.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Stream to video element using appendTo
+      const parentElement = videoRef.current?.parentElement;
+      if (parentElement) {
+        videoFile.appendTo(parentElement, (err, elem) => {
+          if (!err) {
+            setIsReady(true);
+            setIsLoading(false);
+            if (initialTime > 0 && videoRef.current) {
+              videoRef.current.currentTime = initialTime;
+            }
+            if (autoPlay) {
+              videoRef.current?.play();
+            }
+          }
+        });
+      }
+
+      // Update progress
+      torrent.on("download", () => {
+        const downloaded = torrent.downloaded;
+        const total = torrent.length;
+        setProgress((downloaded / total) * 100);
+        setDownloadSpeed(torrent.downloadSpeed);
+      });
+    }
+
+    return () => {
+      client.destroy();
+      clientRef.current = null;
     };
-  }, []);
+  }, [torrentUrl, autoPlay, initialTime]);
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current && onTimeUpdate) {
+      onTimeUpdate(videoRef.current.currentTime);
+    }
+  };
+
+  const handleEnded = () => {
+    if (onEnded) {
+      onEnded();
+    }
+  };
 
   return (
-    <div data-vjs-player className="w-full">
-      <div ref={videoRef} className="video-js-container" />
-      {title && isReady && (
-        <div className="mt-2 text-white text-lg font-semibold">{title}</div>
+    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+      <video
+        ref={videoRef}
+        className="w-full h-full"
+        poster={poster}
+        controls
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={handleEnded}
+        playsInline
+      >
+        Your browser does not support the video tag.
+      </video>
+
+      {isLoading && (
+        <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-white text-lg">Loading torrent...</p>
+          {progress > 0 && (
+            <div className="mt-2">
+              <div className="w-64 h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+              <p className="text-gray-400 text-sm mt-1">
+                {Math.round(progress)}% loaded
+              </p>
+            </div>
+          )}
+          {downloadSpeed > 0 && (
+            <p className="text-green-400 text-sm mt-2">
+              ↓ {formatSpeed(downloadSpeed)}/s
+            </p>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div className="absolute inset-0 bg-red-900/90 flex items-center justify-center">
+          <p className="text-white text-lg">{error}</p>
+        </div>
+      )}
+
+      {title && !isLoading && !error && (
+        <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/70 to-transparent">
+          <h3 className="text-white text-lg font-semibold truncate">{title}</h3>
+        </div>
       )}
     </div>
   );
 };
+
+function formatSpeed(bytesPerSecond: number): string {
+  if (bytesPerSecond < 1024) return `${bytesPerSecond} B`;
+  if (bytesPerSecond < 1024 * 1024) return `${(bytesPerSecond / 1024).toFixed(1)} KB`;
+  return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default VideoPlayer;
