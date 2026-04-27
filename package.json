@@ -10,14 +10,15 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "deploy": "wrangler pages deploy .next/output"
+    "deploy": "npm run build && npx wrangler pages deploy out"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.2.7",
     "@next-auth/prisma-adapter": "^1.0.7",
     "@prisma/client": "^5.14.0",
     "axios": "^1.7.2",
     "firebase": "^10.12.2",
-    "next": "14.2.3",
+    "next": "^15.5.2",
     "next-auth": "^4.24.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -25,6 +26,8 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.16",
+    "@cloudflare/workers-types": "^4.20260426.1",
     "@types/node": "^20.12.12",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -35,6 +38,7 @@
     "postcss": "^8.4.38",
     "prisma": "^5.14.0",
     "tailwindcss": "^3.4.3",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "wrangler": "^4.85.0"
   }
 }

@@ -1,45 +1,41 @@
-import { NextAuthOptions } from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
-import DiscordProvider from "next-auth/providers/discord";
-import GitHubProvider from "next-auth/providers/github";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { PrismaClient } from "@prisma/client";
+import { clerkClient } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 
-const prisma = new PrismaClient();
+// Clerk auth configuration - works with Cloudflare Workers/Pages
+// No database required!
 
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
-  providers: [
-    // Google OAuth - https://console.cloud.google.com/
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-    }),
-    // Discord OAuth - https://discord.com/developers/applications
-    DiscordProvider({
-      clientId: process.env.DISCORD_CLIENT_ID ?? "",
-      clientSecret: process.env.DISCORD_CLIENT_SECRET ?? "",
-    }),
-    // GitHub OAuth - https://github.com/settings/developers
-    GitHubProvider({
-      clientId: process.env.GITHUB_ID ?? "",
-      clientSecret: process.env.GITHUB_SECRET ?? "",
-    }),
-  ],
-  callbacks: {
-    async session({ session, user }) {
-      // Add user ID to session
-      if (session.user) {
-        session.user.id = user.id;
-      }
-      return session;
-    },
-  },
-  pages: {
-    signIn: "/auth/signin",
-    error: "/auth/error",
-  },
-  session: {
-    strategy: "database",
-  },
+export { auth, currentUser };
+
+// Helper to get user ID
+export const getUserId = async () => {
+  const { userId } = await auth();
+  return userId;
 };
+
+// Helper to get current user
+export const getUser = async () => {
+  return await currentUser();
+};
+
+// Helper to check if user is authenticated
+export const isAuthenticated = async () => {
+  const { userId } = await auth();
+  return !!userId;
+};
+
+// Get user email
+export const getUserEmail = async () => {
+  const user = await currentUser();
+  return user?.emailAddresses[0]?.emailAddress;
+};
+
+// Get user profile image
+export const getUserImage = async () => {
+  const user = await currentUser();
+  return user?.imageUrl;
+};
+
+// Clerk publishable key and secret key env vars:
+// NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+// CLERK_SECRET_KEY=sk_test_...
+// CLERK_WEBHOOK_SECRET=whsec_...

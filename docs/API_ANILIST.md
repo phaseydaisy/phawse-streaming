@@ -24,21 +24,3 @@ ANILIST_API_URL=https://graphql.anilist.co
 # Note: AniList has generous rate limits for authenticated users
 
 
-
-
-
-
-
-
-
-answers
-ID
-40130
-Secret
-Le6l2CCg7TL5iAwI2WpdHtJ2dEEiQZrxAnF8rA1M
-
-Name
-streaming
-
-Redirect URL
-null
