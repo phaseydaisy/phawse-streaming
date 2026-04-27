@@ -1,15 +1,10 @@
 name = "phawse-streaming-api"
+main = "index.ts"
 compatibility_date = "2024-09-23"
 
-# Entry point for the Worker
-main = "index.ts"
-# You can either:
-# 1. Use a Workers Domain (api.yourdomain.com)
-# 2. Add a route pattern like /api/*
-
 [vars]
-# These will be set in Cloudflare Dashboard
-# DATABASE_URL, NEXTAUTH_URL, NEXTAUTH_SECRET
-# GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
-# DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET
-# GITHUB_ID, GITHUB_SECRET
+CLERK_SECRET_KEY = "sk_test_dGVuZGVyLWZsYW1pbmdvLTExLmNsZXJrLmFjY291bnRzLmRldiQ"
+
+routes = [
+  { pattern = "streaming.phawse.lol/apiv1/*", zone_name = "phawse.lol" }
+]
