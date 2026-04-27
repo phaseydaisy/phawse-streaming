@@ -6,8 +6,8 @@ import Providers from "./providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AnimeStream - Watch Anime Online Free",
-  description: "Stream your favorite anime in HD with Cloudflare CDN",
+  title: "phawse - Watch Anime Zero Ads",
+  description: "Your friend's streaming site. No ads, no BS — just anime.",
 };
 
 export default function RootLayout({
