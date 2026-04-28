@@ -29,14 +29,18 @@ const VideoPlayer = ({
   const [progress, setProgress] = useState(0);
   const [downloadSpeed, setDownloadSpeed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [peerCount, setPeerCount] = useState(0);
 
   useEffect(() => {
-    // Initialize WebTorrent client
+    // Initialize WebTorrent client with multiple trackers for better peer discovery
     if (!clientRef.current) {
       clientRef.current = new WebTorrent({
         tracker: {
           wss: "wss://tracker.openwebtorrent.com",
+          ws: "wss://tracker.baka.xyz:443",
         },
+        // More aggressive peer connections
+        maxConns: 100,
       });
     }
 
@@ -46,6 +50,7 @@ const VideoPlayer = ({
     if (torrentUrl) {
       setIsLoading(true);
       setError(null);
+      setProgress(0);
 
       // Check if it's a magnet link or torrent file
       if (torrentUrl.startsWith("magnet:")) {
@@ -63,10 +68,20 @@ const VideoPlayer = ({
     }
 
     function handleTorrent(torrent: WebTorrent.Torrent) {
-      // Find the largest video file
+      // Log peer status for debugging
+      torrent.on("warning", (err) => {
+        console.warn("Torrent warning:", err);
+      });
+      
+      torrent.on("error", (err) => {
+        console.error("Torrent error:", err);
+        setError("Connection error. Trying to reconnect...");
+      });
+
+      // Find the largest video file, fallback to first file
       const videoFile = torrent.files.find((file) =>
         file.name.match(/\.(mp4|mkv|avi|mov|webm)$/i)
-      );
+      ) || torrent.files[0];
 
       if (!videoFile) {
         setError("No video file found in this torrent.");
@@ -97,6 +112,12 @@ const VideoPlayer = ({
         const total = torrent.length;
         setProgress((downloaded / total) * 100);
         setDownloadSpeed(torrent.downloadSpeed);
+        setPeerCount(torrent.numPeers);
+      });
+      
+      // Also update on wire events for accurate peer count
+      torrent.on("wire", () => {
+        setPeerCount(torrent.numPeers);
       });
     }
 
@@ -152,6 +173,11 @@ const VideoPlayer = ({
           {downloadSpeed > 0 && (
             <p className="text-green-400 text-sm mt-2">
               ↓ {formatSpeed(downloadSpeed)}/s
+            </p>
+          )}
+          {peerCount > 0 && (
+            <p className="text-yellow-400 text-sm mt-1">
+              👥 {peerCount} peers connected
             </p>
           )}
         </div>

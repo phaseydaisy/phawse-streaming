@@ -1,16 +1,8 @@
-# Cloudflare Pages Configuration
-# GitHub: https://github.com/phaseydaisy/phawse-streaming
 name = "phawse-streaming"
 compatibility_date = "2024-09-23"
 pages_build_output_dir = "out"
 
 [vars]
 NEXT_PUBLIC_APP_URL = "https://streaming.phawse.lol"
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_dGVuZGVyLWZsYW1pbmdvLTExLmNsZXJrLmFjY291bnRzLmRldiQ"
-
-# CLERK_SECRET_KEY - set via wrangler CLI for production
-# Run: npx wrangler pages secret put CLERK_SECRET_KEY --project-name phawse-streaming
-
-main = "api-worker/index.ts"
-
-
+NEXT_PUBLIC_API_URL = "https://streaming.phawse.lol/apiv1"
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "sk_test_dGVuZGVyLWZsYW1pbmdvLTExLmNsZXJrLmFjY291bnRzLmRldiQ"
