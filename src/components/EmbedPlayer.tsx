@@ -6,9 +6,10 @@ interface EmbedPlayerProps {
   embedUrl: string;
   title?: string;
   onEnded?: () => void;
+  onFailed?: () => void;
 }
 
-export default function EmbedPlayer({ embedUrl, title, onEnded }: EmbedPlayerProps) {
+export default function EmbedPlayer({ embedUrl, title, onEnded, onFailed }: EmbedPlayerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +26,9 @@ export default function EmbedPlayer({ embedUrl, title, onEnded }: EmbedPlayerPro
   const handleError = () => {
     setIsLoading(false);
     setError("Failed to load the video player. The source may be unavailable.");
+    if (onFailed) {
+      onFailed();
+    }
   };
 
   return (

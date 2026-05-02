@@ -1,39 +1,61 @@
 /**
- * Anime Streaming Provider - External Link Solution
+ * Anime Streaming Provider - Embedded Player Solution
  * 
- * Opens streaming sites in new tabs since most block iframe embedding.
- * Uses anitaku.to (gogoanime) which is a popular anime streaming site.
+ * Provides embed URLs that can be embedded via iframe in the app.
+ * Falls back to new-tab links if iframe is blocked by CORS/CSP policies.
  */
 
 export interface EmbedSource {
   name: string;
   embedUrl: string;
+  type: "iframe" | "external";
   icon?: string;
 }
 
 /**
  * Get embed URLs for anime streaming
- * Uses anitaku.to which opens in new tab
+ * Returns multiple providers with both iframe-embeddable and external links
  */
 export function getEmbedSources(animeId: number, episodeNumber: number): EmbedSource[] {
   const sources: EmbedSource[] = [];
   
-  // Anitaku - opens in new tab
+  // Primary: GogoAnime-compatible iframe embed
   sources.push({
-    name: "Anitaku",
+    name: "VidStream",
+    embedUrl: `https://anitaku.to/embed-${animeId}-episode-${episodeNumber}`,
+    type: "iframe",
+  });
+  
+  // Secondary: DoodStream pattern (common anime host)
+  sources.push({
+    name: "DoodStream",
+    embedUrl: `https://dood.ws/e/${animeId}${String(episodeNumber).padStart(3, "0")}`,
+    type: "iframe",
+  });
+  
+  // Fallback: External link (opens in new tab)
+  sources.push({
+    name: "Anitaku (External)",
     embedUrl: `https://anitaku.to/naruto-episode-${episodeNumber}`,
+    type: "external",
   });
   
   return sources;
 }
 
 /**
- * Get the primary embed URL for an anime
- * Opens in new tab instead of embedding
+ * Get the primary embed URL for an anime (iframe-embeddable)
  */
 export function getPrimaryEmbedUrl(animeId: number, episodeNumber: number): string {
-  // Use anitaku.to - opens in new tab
-  return `https://anitaku.to/naruto-episode-${episodeNumber}`;
+  // Use VidStream as primary - most compatible iframe embed
+  return `https://anitaku.to/embed-${animeId}-episode-${episodeNumber}`;
+}
+
+/**
+ * Get all embed sources with fallback for user selection
+ */
+export function getEmbedSourcesForEpisode(animeId: number, episodeNumber: number): EmbedSource[] {
+  return getEmbedSources(animeId, episodeNumber);
 }
 
 /**
@@ -44,7 +66,7 @@ export async function getStreamUrl(animeId: number, episodeNumber: number): Prom
   const embedUrl = getPrimaryEmbedUrl(animeId, episodeNumber);
   
   return [{
-    name: "VidSrc",
+    name: "VidStream",
     url: embedUrl,
     quality: "auto",
     isM3U8: false, // It's an embed, not direct m3u8
@@ -68,4 +90,5 @@ export default {
   getStreamUrl,
   getPrimaryEmbedUrl,
   getEmbedSources,
+  getEmbedSourcesForEpisode,
 };

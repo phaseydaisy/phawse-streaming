@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import VideoPlayer from "@/components/VideoPlayer";
 import EmbedPlayer from "@/components/EmbedPlayer";
-import { getPrimaryEmbedUrl } from "@/lib/anime-provider";
+import { getPrimaryEmbedUrl, getEmbedSources, type EmbedSource } from "@/lib/anime-provider";
 
 interface Episode {
   mal_id: number;
@@ -27,8 +27,11 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes, tota
   const [selectedEpisode, setSelectedEpisode] = useState<number | null>(null);
   const [currentEpisode, setCurrentEpisode] = useState<number>(1);
   const [streamUrl, setStreamUrl] = useState<string>("");
+  const [embeds, setEmbeds] = useState<EmbedSource[]>([]);
+  const [selectedEmbedIndex, setSelectedEmbedIndex] = useState<number>(0);
   const [searchStatus, setSearchStatus] = useState<"idle" | "searching" | "found" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [embedFailed, setEmbedFailed] = useState(false);
 
   // Search for streams when episode changes
   useEffect(() => {
@@ -40,11 +43,17 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes, tota
   const searchStreams = async (episodeNum: number) => {
     setSearchStatus("searching");
     setErrorMessage("");
+    setEmbedFailed(false);
+    setSelectedEmbedIndex(0);
 
     try {
-      // Generate embed URL directly (single provider)
-      const embedUrl = getPrimaryEmbedUrl(animeId, episodeNum);
-      setStreamUrl(embedUrl);
+      // Get all available embed sources
+      const embedSources = getEmbedSources(animeId, episodeNum);
+      setEmbeds(embedSources);
+      
+      // Use the first iframe embed source by default
+      const primaryEmbed = embedSources.find(e => e.type === "iframe") || embedSources[0];
+      setStreamUrl(primaryEmbed.embedUrl);
       setSearchStatus("found");
     } catch (err) {
       setSearchStatus("error");
@@ -77,9 +86,20 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes, tota
     }
   };
 
+  const handleSwitchEmbed = (index: number) => {
+    setSelectedEmbedIndex(index);
+    setStreamUrl(embeds[index].embedUrl);
+    setEmbedFailed(false);
+  };
+
+  const handleEmbedFailed = () => {
+    setEmbedFailed(true);
+  };
+
   const currentEpData = initialEpisodes.find(ep => ep.mal_id === currentEpisode);
   const currentIndex = initialEpisodes.findIndex(ep => ep.mal_id === currentEpisode);
   const displayEpisodeNumber = currentIndex + 1;
+  const currentEmbed = embeds[selectedEmbedIndex];
 
   return (
     <div>
@@ -124,8 +144,8 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes, tota
               {searchStatus === "searching" && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10">
                   <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p className="text-white text-lg mb-2">Searching for streams...</p>
-                  <p className="text-gray-400 text-sm">Checking multiple sources</p>
+                  <p className="text-white text-lg mb-2">Loading streams...</p>
+                  <p className="text-gray-400 text-sm">Checking available sources</p>
                 </div>
               )}
 
@@ -143,24 +163,85 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes, tota
               )}
 
               {searchStatus === "found" && streamUrl && (
-                <div className="flex flex-col items-center justify-center bg-black/80 p-6">
-                  <p className="text-white text-lg mb-4">Click below to watch Episode {currentEpisode}</p>
-                  <a 
-                    href={streamUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white text-lg font-semibold"
-                  >
-                    🎬 Watch Now (Opens in new tab)
-                  </a>
-                  <p className="text-gray-400 text-sm mt-4">
-                    If the link doesn't open, <button 
-                      onClick={() => window.open(streamUrl, '_blank')}
-                      className="text-purple-400 underline"
-                    >
-                      click here
-                    </button>
-                  </p>
+                <div className="flex flex-col gap-4">
+                  {/* Provider Selector (show if multiple providers available) */}
+                  {embeds.length > 1 && (
+                    <div className="flex gap-2 flex-wrap bg-black/40 p-4 rounded-lg">
+                      {embeds.map((embed, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleSwitchEmbed(idx)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                            selectedEmbedIndex === idx
+                              ? "bg-purple-600 text-white"
+                              : "bg-white/10 text-gray-300 hover:bg-white/20"
+                          }`}
+                        >
+                          {embed.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Embed Player */}
+                  {currentEmbed?.type === "iframe" && !embedFailed && (
+                    <EmbedPlayer
+                      embedUrl={streamUrl}
+                      title={`${animeTitle} - Episode ${displayEpisodeNumber}`}
+                      onFailed={handleEmbedFailed}
+                    />
+                  )}
+
+                  {/* Fallback: External Link or Failed Embed */}
+                  {(embedFailed || currentEmbed?.type === "external") && (
+                    <div className="flex flex-col items-center justify-center bg-black/60 p-8 rounded-lg gap-4 min-h-[400px]">
+                      <div className="text-5xl">🎬</div>
+                      {embedFailed && (
+                        <>
+                          <p className="text-white text-lg">Player blocked by site restrictions</p>
+                          <p className="text-gray-400 text-sm text-center">
+                            The video player couldn't load. Open the stream in a new window instead.
+                          </p>
+                        </>
+                      )}
+                      {currentEmbed?.type === "external" && (
+                        <>
+                          <p className="text-white text-lg">Open in External Player</p>
+                          <p className="text-gray-400 text-sm text-center">
+                            Click the button below to watch this episode
+                          </p>
+                        </>
+                      )}
+                      <a
+                        href={streamUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white text-lg font-semibold"
+                      >
+                        Open Player (New Tab)
+                      </a>
+
+                      {/* Try other providers if embed failed */}
+                      {embedFailed && embeds.length > 1 && (
+                        <div className="mt-4 flex flex-col gap-2 w-full">
+                          <p className="text-gray-400 text-sm">Try a different provider:</p>
+                          <div className="flex gap-2 flex-wrap justify-center">
+                            {embeds.map((embed, idx) => (
+                              idx !== selectedEmbedIndex && (
+                                <button
+                                  key={idx}
+                                  onClick={() => handleSwitchEmbed(idx)}
+                                  className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-sm text-gray-300"
+                                >
+                                  {embed.name}
+                                </button>
+                              )
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </>
