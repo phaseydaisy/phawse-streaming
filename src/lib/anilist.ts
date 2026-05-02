@@ -227,6 +227,17 @@ export const anilistApi = {
   },
 
   /**
+   * Get anime by MAL ID (MyAnimeList ID)
+   */
+  getAnimeByMalId: async (malId: number) => {
+    const response = await anilistClient.post<AniListResponse<{ Media: AniListAnime }>>("", {
+      query: GET_ANIME_BY_ID,
+      variables: { id: malId },
+    });
+    return response.data.data.Media;
+  },
+
+  /**
    * Search anime by query
    */
   searchAnime: async (query: string, page = 1, perPage = 25) => {

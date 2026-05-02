@@ -1,5 +1,7 @@
 import jikanApi from "@/lib/jikan";
+import { anilistApi } from "@/lib/anilist";
 import EpisodeList from "./EpisodeList";
+import VideoPlayer from "@/components/VideoPlayer";
 
 export default async function AnimePage({
   params,
@@ -9,14 +11,40 @@ export default async function AnimePage({
   const { id } = await params;
   const animeId = Number(id);
 
-  const res = await jikanApi.getAnimeDetails(animeId);
-  const data = res.data;
+  // Fetch from both Jikan and AniList in parallel
+  const [jikanRes, anilistData] = await Promise.all([
+    jikanApi.getAnimeDetails(animeId),
+    anilistApi.getAnimeByMalId(animeId).catch(() => null),
+  ]);
 
-  // Fetch episodes (may have pagination)
+  const data = jikanRes.data;
+
+  // Get episode count from both sources and use the maximum
+  const jikanEpisodes = data.episodes || 0;
+  const anilistEpisodes = anilistData?.episodes || 0;
+  const totalEpisodes = Math.max(jikanEpisodes, anilistEpisodes);
+
+  // Fetch ALL episodes from Jikan (handle pagination)
   let episodes: any[] = [];
   try {
-    const epRes = await jikanApi.getEpisodes(animeId);
-    episodes = epRes.data || [];
+    // First, get the first page to determine total pages
+    const firstPage = await jikanApi.getEpisodes(animeId, 1);
+    const firstPageData = firstPage.data || [];
+    const lastPage = firstPage.pagination?.last_visible_page || 1;
+    
+    episodes = [...firstPageData];
+    
+    // Fetch remaining pages if any
+    if (lastPage > 1) {
+      const remainingPages = await Promise.all(
+        Array.from({ length: lastPage - 1 }, (_, i) => 
+          jikanApi.getEpisodes(animeId, i + 2)
+        )
+      );
+      for (const page of remainingPages) {
+        episodes.push(...(page.data || []));
+      }
+    }
   } catch (e) {
     console.log("No episodes available");
   }
@@ -55,9 +83,13 @@ export default async function AnimePage({
             <span className="px-2 py-1 rounded-full text-xs" style={{ background: "var(--bg-secondary)" }}>
               {data.type || "TV"}
             </span>
-            {data.episodes && (
+            {(totalEpisodes > episodes.length) ? (
               <span className="px-2 py-1 rounded-full text-xs" style={{ background: "var(--bg-secondary)" }}>
-                {data.episodes} episodes
+                {episodes.length}/{totalEpisodes} episodes
+              </span>
+            ) : (
+              <span className="px-2 py-1 rounded-full text-xs" style={{ background: "var(--bg-secondary)" }}>
+                {episodes.length} episodes
               </span>
             )}
           </div>
@@ -99,7 +131,10 @@ export default async function AnimePage({
           <EpisodeList 
             animeId={animeId} 
             animeTitle={data.title} 
-            initialEpisodes={episodes} 
+            initialEpisodes={episodes}
+            totalEpisodes={totalEpisodes}
+            trailerUrl={data.trailer?.url}
+            posterUrl={data.images.jpg.large_image_url}
           />
         </div>
       </div>

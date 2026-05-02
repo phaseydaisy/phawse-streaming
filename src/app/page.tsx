@@ -25,9 +25,9 @@ export default async function Home() {
         </p>
 
         <div className="flex gap-4 mt-8">
-          <button className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/15 backdrop-blur">
+          <Link href="/search" className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/15 backdrop-blur">
             Start Watching
-          </button>
+          </Link>
           <button className="px-6 py-3 rounded-xl border border-white/10 hover:bg-white/5">
             Learn More
           </button>

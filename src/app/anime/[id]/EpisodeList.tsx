@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import VideoPlayer from "@/components/VideoPlayer";
+import EmbedPlayer from "@/components/EmbedPlayer";
+import { getPrimaryEmbedUrl } from "@/lib/anime-provider";
 
 interface Episode {
   mal_id: number;
@@ -9,110 +11,52 @@ interface Episode {
   title_japanese?: string;
   aired: string;
   forum_url?: string;
-}
-
-interface TorrentResult {
-  name: string;
-  magnet: string;
-  size: string;
-  seeds: number;
-  leeches: number;
+  episode?: number; // Episode number from Jikan API
 }
 
 interface EpisodeListProps {
   animeId: number;
   animeTitle: string;
   initialEpisodes: Episode[];
+  totalEpisodes?: number;
+  trailerUrl?: string;
+  posterUrl?: string;
 }
 
-export default function EpisodeList({ animeId, animeTitle, initialEpisodes }: EpisodeListProps) {
+export default function EpisodeList({ animeId, animeTitle, initialEpisodes, totalEpisodes, trailerUrl, posterUrl }: EpisodeListProps) {
   const [selectedEpisode, setSelectedEpisode] = useState<number | null>(null);
   const [currentEpisode, setCurrentEpisode] = useState<number>(1);
-  const [torrentUrl, setTorrentUrl] = useState<string>("");
-  const [torrents, setTorrents] = useState<TorrentResult[]>([]);
-  const [selectedTorrent, setSelectedTorrent] = useState<TorrentResult | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
+  const [streamUrl, setStreamUrl] = useState<string>("");
   const [searchStatus, setSearchStatus] = useState<"idle" | "searching" | "found" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
 
-  // Search for torrents when episode changes
+  // Search for streams when episode changes
   useEffect(() => {
     if (selectedEpisode) {
-      searchTorrents(selectedEpisode);
+      searchStreams(selectedEpisode);
     }
   }, [selectedEpisode]);
 
-  const searchTorrents = async (episodeNum: number) => {
-    setIsSearching(true);
+  const searchStreams = async (episodeNum: number) => {
     setSearchStatus("searching");
     setErrorMessage("");
-    setTorrents([]);
-    setSelectedTorrent(null);
-    setTorrentUrl("");
 
     try {
-      // Try multiple search queries for better results
-      const queries = [
-        `${animeTitle} Episode ${episodeNum} 1080p`,
-        `${animeTitle} ${episodeNum} 1080p`,
-        `${animeTitle} E${episodeNum}`,
-      ];
-
-      let foundTorrents: TorrentResult[] = [];
-
-      for (const query of queries) {
-        try {
-          // Use local API route for dev, external for production
-          const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-            ? `/api/search-torrent?q=${encodeURIComponent(query)}`
-            : `/apiv1/search-torrent?q=${encodeURIComponent(query)}`;
-          
-          const response = await fetch(apiUrl);
-          const data = await response.json();
-
-          if (data.torrents && data.torrents.length > 0) {
-            foundTorrents = data.torrents;
-            break;
-          } else if (data.magnet && foundTorrents.length === 0) {
-            // Fallback to single magnet
-            foundTorrents = [{
-              name: data.name || query,
-              magnet: data.magnet,
-              size: data.size || "Unknown",
-              seeds: 0,
-              leeches: 0,
-            }];
-          }
-        } catch (e) {
-          console.log("Query failed:", query);
-        }
-      }
-
-      if (foundTorrents.length > 0) {
-        setTorrents(foundTorrents);
-        setSelectedTorrent(foundTorrents[0]);
-        setTorrentUrl(foundTorrents[0].magnet);
-        setSearchStatus("found");
-      } else {
-        setSearchStatus("error");
-        setErrorMessage("No torrents found. Try searching manually on Nyaa.si.");
-      }
+      // Generate embed URL directly (single provider)
+      const embedUrl = getPrimaryEmbedUrl(animeId, episodeNum);
+      setStreamUrl(embedUrl);
+      setSearchStatus("found");
     } catch (err) {
       setSearchStatus("error");
-      setErrorMessage("Failed to search for torrents. Please try again.");
-    } finally {
-      setIsSearching(false);
+      setErrorMessage("Failed to load player. Please try again.");
     }
   };
 
   const handleEpisodeSelect = (episode: Episode) => {
-    setCurrentEpisode(episode.mal_id);
-    setSelectedEpisode(episode.mal_id);
-  };
-
-  const handleTorrentSelect = (torrent: TorrentResult) => {
-    setSelectedTorrent(torrent);
-    setTorrentUrl(torrent.magnet);
+    // Use episode number (1, 2, 3...) not mal_id
+    const epNum = episode.episode || 1;
+    setCurrentEpisode(epNum);
+    setSelectedEpisode(epNum);
   };
 
   const goToPreviousEpisode = () => {
@@ -124,12 +68,18 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes }: Ep
 
   const goToNextEpisode = () => {
     const currentIndex = initialEpisodes.findIndex(ep => ep.mal_id === currentEpisode);
+    const maxEpisodes = totalEpisodes || initialEpisodes.length;
     if (currentIndex < initialEpisodes.length - 1) {
       handleEpisodeSelect(initialEpisodes[currentIndex + 1]);
+    } else if (currentIndex === initialEpisodes.length - 1 && initialEpisodes.length < maxEpisodes) {
+      // If we have more episodes to fetch, could trigger fetch here
+      console.log("More episodes may be available");
     }
   };
 
   const currentEpData = initialEpisodes.find(ep => ep.mal_id === currentEpisode);
+  const currentIndex = initialEpisodes.findIndex(ep => ep.mal_id === currentEpisode);
+  const displayEpisodeNumber = currentIndex + 1;
 
   return (
     <div>
@@ -139,20 +89,20 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes }: Ep
           <div className="flex items-center gap-4">
             <button 
               onClick={goToPreviousEpisode}
-              disabled={currentEpisode <= Math.min(...initialEpisodes.map(e => e.mal_id))}
+              disabled={currentIndex <= 0}
               className="episode-nav-btn"
             >
               ← Prev
             </button>
             <div>
-              <span className="text-lg font-semibold">Episode {currentEpisode}</span>
+              <span className="text-lg font-semibold">Episode {displayEpisodeNumber}</span>
               {currentEpData?.title && (
                 <span className="text-gray-400 ml-2 text-sm">{currentEpData.title}</span>
               )}
             </div>
             <button 
               onClick={goToNextEpisode}
-              disabled={currentEpisode >= Math.max(...initialEpisodes.map(e => e.mal_id))}
+              disabled={currentIndex >= initialEpisodes.length - 1}
               className="episode-nav-btn"
             >
               Next →
@@ -168,12 +118,13 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes }: Ep
 
         {/* Video Container */}
         <div className="video-container">
+          {/* Show episode player when episode is selected */}
           {selectedEpisode && (
             <>
               {searchStatus === "searching" && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10">
                   <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p className="text-white text-lg mb-2">Searching for torrents...</p>
+                  <p className="text-white text-lg mb-2">Searching for streams...</p>
                   <p className="text-gray-400 text-sm">Checking multiple sources</p>
                 </div>
               )}
@@ -182,11 +133,8 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes }: Ep
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10 p-6">
                   <div className="text-red-400 text-4xl mb-4">⚠</div>
                   <p className="text-white text-lg mb-2">{errorMessage}</p>
-                  <p className="text-gray-400 text-sm text-center mb-4">
-                    You can try manually searching on Nyaa.si for "{animeTitle} Episode {currentEpisode}"
-                  </p>
                   <button 
-                    onClick={() => searchTorrents(currentEpisode)}
+                    onClick={() => searchStreams(currentEpisode)}
                     className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-white text-sm"
                   >
                     Try Again
@@ -194,16 +142,42 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes }: Ep
                 </div>
               )}
 
-              {searchStatus === "found" && torrentUrl && (
-                <VideoPlayer 
-                  torrentUrl={torrentUrl}
-                  title={`${animeTitle} - Episode ${currentEpisode}`}
-                />
+              {searchStatus === "found" && streamUrl && (
+                <div className="flex flex-col items-center justify-center bg-black/80 p-6">
+                  <p className="text-white text-lg mb-4">Click below to watch Episode {currentEpisode}</p>
+                  <a 
+                    href={streamUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white text-lg font-semibold"
+                  >
+                    🎬 Watch Now (Opens in new tab)
+                  </a>
+                  <p className="text-gray-400 text-sm mt-4">
+                    If the link doesn't open, <button 
+                      onClick={() => window.open(streamUrl, '_blank')}
+                      className="text-purple-400 underline"
+                    >
+                      click here
+                    </button>
+                  </p>
+                </div>
               )}
             </>
           )}
 
-          {!selectedEpisode && (
+          {/* Show trailer when no episode is selected */}
+          {!selectedEpisode && trailerUrl && (
+            <VideoPlayer 
+              streamUrl={trailerUrl}
+              poster={posterUrl}
+              title={animeTitle}
+              autoPlay={true}
+            />
+          )}
+
+          {/* Show placeholder when no episode and no trailer */}
+          {!selectedEpisode && !trailerUrl && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/60">
               <div className="text-center">
                 <div className="text-5xl mb-4">🎬</div>
@@ -214,38 +188,22 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes }: Ep
           )}
         </div>
 
-        {/* Torrent Selection */}
-        {searchStatus === "found" && torrents.length > 1 && (
-          <div className="mt-4 p-4 rounded-lg" style={{ background: "var(--bg-secondary)" }}>
-            <p className="text-sm text-gray-400 mb-3">Select a different torrent:</p>
-            <div className="flex flex-wrap gap-2">
-              {torrents.slice(0, 5).map((torrent, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleTorrentSelect(torrent)}
-                  className={`px-3 py-2 rounded-lg text-sm transition-all ${
-                    selectedTorrent?.magnet === torrent.magnet
-                      ? "bg-purple-600 text-white"
-                      : "bg-white/10 hover:bg-white/20 text-gray-300"
-                  }`}
-                >
-                  {torrent.name.slice(0, 40)}...
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        
       </div>
 
       {/* Episode Grid */}
       <div>
         <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
           <span>📺</span> All Episodes
-          <span className="text-gray-400 text-sm font-normal ml-2">({initialEpisodes.length} episodes)</span>
+          <span className="text-gray-400 text-sm font-normal ml-2">
+            {totalEpisodes && totalEpisodes > initialEpisodes.length
+              ? `(${initialEpisodes.length}/${totalEpisodes} episodes)`
+              : `(${initialEpisodes.length} episodes)`}
+          </span>
         </h3>
         
         <div className="episode-grid">
-          {initialEpisodes.map((episode) => (
+          {initialEpisodes.map((episode, index) => (
             <button
               key={episode.mal_id}
               onClick={() => handleEpisodeSelect(episode)}
@@ -253,9 +211,9 @@ export default function EpisodeList({ animeId, animeTitle, initialEpisodes }: Ep
                 selectedEpisode === episode.mal_id ? "active" : ""
               }`}
             >
-              <div className="episode-number">Ep {episode.mal_id}</div>
+              <div className="episode-number">Ep {index + 1}</div>
               <div className="episode-title">
-                {episode.title || `Episode ${episode.mal_id}`}
+                {episode.title || `Episode ${index + 1}`}
               </div>
             </button>
           ))}
