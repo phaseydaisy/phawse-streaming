@@ -3,6 +3,9 @@
  * 
  * Provides embed URLs that can be embedded via iframe in the app.
  * Falls back to new-tab links if iframe is blocked by CORS/CSP policies.
+ * 
+ * Updated to use providers from https://theindex.moe/library/anime
+ * Sources: Anime Nexus, 1anime, AniGO, AniKage, Anilab
  */
 
 export interface EmbedSource {
@@ -14,41 +17,63 @@ export interface EmbedSource {
 
 /**
  * Get embed URLs for anime streaming
- * Returns multiple providers with both iframe-embeddable and external links
+ * Returns multiple providers with direct video iframe embeds from theindex.moe
  */
 export function getEmbedSources(animeId: number, episodeNumber: number): EmbedSource[] {
   const sources: EmbedSource[] = [];
-  
-  // Primary: GogoAnime-compatible iframe embed
+
+  // Primary: Anime Nexus - Ad-free 1080p anime streaming
   sources.push({
-    name: "VidStream",
-    embedUrl: `https://anitaku.to/embed-${animeId}-episode-${episodeNumber}`,
+    name: "Anime Nexus",
+    embedUrl: `https://anime.nexus/embed/${animeId}?ep=${episodeNumber}`,
     type: "iframe",
   });
-  
-  // Secondary: DoodStream pattern (common anime host)
+
+  // Secondary: 1anime - No Watermark, 1080p
   sources.push({
-    name: "DoodStream",
-    embedUrl: `https://dood.ws/e/${animeId}${String(episodeNumber).padStart(3, "0")}`,
+    name: "1anime",
+    embedUrl: `https://1anime.app/embed/${animeId}?ep=${episodeNumber}`,
     type: "iframe",
   });
-  
+
+  // Tertiary: AniGO - No Ads, multi-language
+  sources.push({
+    name: "AniGO",
+    embedUrl: `https://anigo.to/embed/${animeId}?ep=${episodeNumber}`,
+    type: "iframe",
+  });
+
+  // Quaternary: AniKage - No Ads No Watermark
+  sources.push({
+    name: "AniKage",
+    embedUrl: `https://anikage.cc/embed/${animeId}?ep=${episodeNumber}`,
+    type: "iframe",
+  });
+
+  // Quinary: Anilab - Mobile Responsive
+  sources.push({
+    name: "Anilab",
+    embedUrl: `https://anilab.to/embed/${animeId}?ep=${episodeNumber}`,
+    type: "iframe",
+  });
+
   // Fallback: External link (opens in new tab)
   sources.push({
-    name: "Anitaku (External)",
-    embedUrl: `https://anitaku.to/naruto-episode-${episodeNumber}`,
+    name: "External Player",
+    embedUrl: `https://anime.nexus/watch/${animeId}?ep=${episodeNumber}`,
     type: "external",
   });
-  
+
   return sources;
 }
 
 /**
  * Get the primary embed URL for an anime (iframe-embeddable)
+ * Using Anime Nexus as primary from theindex.moe
  */
 export function getPrimaryEmbedUrl(animeId: number, episodeNumber: number): string {
-  // Use VidStream as primary - most compatible iframe embed
-  return `https://anitaku.to/embed-${animeId}-episode-${episodeNumber}`;
+  // Use Anime Nexus as primary - ad-free 1080p streaming
+  return `https://anime.nexus/embed/${animeId}?ep=${episodeNumber}`;
 }
 
 /**
@@ -66,7 +91,7 @@ export async function getStreamUrl(animeId: number, episodeNumber: number): Prom
   const embedUrl = getPrimaryEmbedUrl(animeId, episodeNumber);
   
   return [{
-    name: "VidStream",
+    name: "Anime Nexus",
     url: embedUrl,
     quality: "auto",
     isM3U8: false, // It's an embed, not direct m3u8

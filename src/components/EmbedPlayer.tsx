@@ -59,11 +59,17 @@ export default function EmbedPlayer({ embedUrl, title, onEnded, onFailed }: Embe
         ref={iframeRef}
         src={embedUrl}
         title={title || "Anime Player"}
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
         allowFullScreen
+        frameBorder="0"
+        scrolling="no"
         className="absolute top-0 left-0 w-full h-full border-0"
         onLoad={handleLoad}
         onError={handleError}
+        style={{
+          backgroundColor: 'black',
+          display: 'block'
+        }}
       />
     </div>
   );
